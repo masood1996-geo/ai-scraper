@@ -278,12 +278,12 @@ results = scraper.scrape(url, my_schema)
 
 ## 🤖 Supported AI Providers
 
-| Provider | Setup | Free Tier? |
-|----------|-------|------------|
-| **OpenRouter** | [Get Key](https://openrouter.ai) | ✅ Free models available |
-| **OpenAI** | [Get Key](https://platform.openai.com) | ❌ Paid only |
-| **Kilo** | [Get Key](https://kilo.ai) | ❌ Paid only |
-| **Ollama** | [Install](https://ollama.com) | ✅ Free (local) |
+| Provider | Setup | Free Tier? | Free Model |
+|----------|-------|------------|------------|
+| **OpenRouter** | [Get Key](https://openrouter.ai) | ✅ Free models available | Various free models |
+| **OpenAI** | [Get Key](https://platform.openai.com) | ❌ Paid only | — |
+| **Kilo** | [Get Key](https://kilo.ai) | ✅ Free models available | `kilocode/kilo-auto/free` |
+| **Ollama** | [Install](https://ollama.com) | ✅ Free (local) | Any local model |
 
 ```bash
 # Set API key via environment variable
@@ -291,6 +291,9 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 # Or pass directly
 ai-scraper scrape https://example.com --api-key "sk-or-v1-..." --schema products
+
+# Use Kilo with the free model
+ai-scraper scrape https://example.com --provider kilo --model kilocode/kilo-auto/free --schema products
 ```
 
 ---
