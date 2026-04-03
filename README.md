@@ -1,16 +1,15 @@
 <div align="center">
 
-# 🤖 AI Scraper
-
-### Universal AI-Powered Web Data Extraction Engine
+# 🕷️ AI Scraper
 
 **Point at any website. Get structured data back. No custom parsers needed.**
 
-AI Scraper uses headless Chrome + LLM intelligence to extract structured data from any webpage — no CSS selectors, no XPath, no brittle regex. Just describe what you want, and the AI figures out the rest.
+AI Scraper combines headless Chrome with LLM intelligence and a **self-learning engine** to extract structured data from any webpage — no CSS selectors, no XPath, no brittle regex. Describe what you want, and the AI figures out the rest. The more you use it, the smarter it gets.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![AI Powered](https://img.shields.io/badge/AI-LLM%20Powered-FF6F00?style=for-the-badge&logo=openai&logoColor=white)]()
+[![Self Learning](https://img.shields.io/badge/Self--Learning-Adaptive%20AI-blueviolet?style=for-the-badge)]()
 
 ---
 
@@ -27,9 +26,9 @@ AI Scraper uses headless Chrome + LLM intelligence to extract structured data fr
 
 ---
 
-## 🎯 Why AI Scraper?
+## Why AI Scraper?
 
-Traditional scrapers break when websites change their HTML. AI Scraper doesn't care about HTML structure — it **reads the page like a human** and extracts exactly what you ask for.
+Traditional scrapers break when websites change their HTML. AI Scraper doesn't care about HTML structure — it **reads the page like a human**, extracts exactly what you ask for, and **learns from every interaction** to get better over time.
 
 | Traditional Scraping | AI Scraper |
 |---------------------|------------|
@@ -39,13 +38,14 @@ Traditional scrapers break when websites change their HTML. AI Scraper doesn't c
 | ❌ Blocked by WAF/anti-bot | ✅ Undetected Chrome bypass |
 | ❌ Hours of maintenance | ✅ Zero maintenance |
 | ❌ Same dumb mistakes every time | ✅ **Self-learning** — gets smarter with every scrape |
+| ❌ Manual tuning per domain | ✅ **Auto-learns** optimal settings per site |
+| ❌ Static extraction prompts | ✅ **Evolving prompts** — AI writes better prompts for itself |
 
 ---
 
 ## ⚡ Quick Start
 
 ### Installation
-
 ```bash
 git clone https://github.com/masood1996-geo/ai-scraper.git
 cd ai-scraper
@@ -53,7 +53,6 @@ pip install -e .
 ```
 
 ### Your First Scrape (3 lines)
-
 ```python
 from ai_scraper import AIScraper, Schema
 
@@ -63,7 +62,6 @@ with AIScraper(provider="openrouter", api_key="sk-or-v1-...") as scraper:
 ```
 
 ### CLI Usage
-
 ```bash
 # Scrape apartments
 ai-scraper scrape https://immowelt.de/liste/berlin/wohnungen/mieten \
@@ -91,6 +89,142 @@ ai-scraper diagnose www.immowelt.de
 
 ---
 
+## 🧠 Auto-Learning Engine — The Brain
+
+> **This is what makes AI Scraper fundamentally different from every other scraping tool.**
+
+AI Scraper features a **persistent self-learning engine** that improves extraction quality autonomously — no manual tuning, no rule-writing, no maintenance. The system builds a growing knowledge base in a local SQLite database (`~/.ai_scraper/memory.db`) that persists across sessions, reboots, and restarts.
+
+### How the Learning Loop Works
+
+Every scrape triggers a 6-stage autonomous learning cycle:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     THE SELF-LEARNING PIPELINE                      │
+│                                                                     │
+│  ① CHECK MEMORY ──→ ② CHROME FETCH ──→ ③ INTELLIGENT CLEAN         │
+│     Recall domain       Anti-bot bypass    Apply learned rules      │
+│     profiles, evolved   with undetected    + standard HTML          │
+│     prompts, optimal    chromedriver       stripping pipeline       │
+│     wait times                                                      │
+│                                                                     │
+│  ④ LLM EXTRACT ──→ ⑤ QUALITY SCORE ──→ ⑥ LEARN & STORE            │
+│     Use evolved         Auto-evaluate       Update domain profile   │
+│     prompts with        using 5 metrics     Store evolved prompts   │
+│     domain-specific     (see below)         Adjust wait times       │
+│     instructions                            Log all diagnostics     │
+│                              │                                      │
+│                    ┌─────────▼──────────┐                           │
+│                    │  Quality < 60%?    │                           │
+│                    │   → Generate new   │                           │
+│                    │     strategy       │                           │
+│                    │   → Retry with     │                           │
+│                    │     evolved prompt │                           │
+│                    └────────────────────┘                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The 5 Quality Metrics
+
+Every extraction is automatically scored across five weighted dimensions:
+
+| Metric | Weight | What It Measures |
+|--------|--------|-----------------|
+| **Field Fill Rate** | 35% | Percentage of schema fields that have values (non-empty, non-N/A) |
+| **Data Validity** | 30% | Whether values are meaningful — not garbage, not the field name repeated, not placeholder text |
+| **Uniqueness** | 15% | De-duplication check — are extracted items actually distinct from each other? |
+| **Content Quality** | 10% | Detects lorem ipsum, placeholder text, navigation artifacts, and other non-data content |
+| **Result Count** | 10% | Bonus for finding multiple items — capped at 5 items for full credit |
+
+Quality thresholds:
+- ⭐ **Excellent** (≥ 85%) — Optimal extraction, no action needed
+- ✅ **Good** (≥ 60%) — Acceptable quality, results returned as-is
+- ⚠️ **Poor** (≥ 35%) — Triggers the self-improvement loop
+- ❌ **Failure** (< 35%) — Aggressive retry with evolved strategy
+
+### Self-Improvement: What Happens When Quality Is Low
+
+When the quality score drops below 60%, the engine enters **self-improvement mode** — an autonomous retry loop that diagnoses the problem and generates a better extraction strategy:
+
+1. **Issue Detection** — Identifies the specific failure mode:
+   - `NO_RESULTS` → Page may need longer JS rendering time
+   - `LOW_FILL_RATE` → LLM can't map fields to page content
+   - `GARBAGE_CONTENT` → Extracting nav items / footer content instead of data
+   - `MANY_DUPLICATES` → Same item extracted multiple times
+   - `ONLY_ONE_RESULT` → Pagination or content loading issues
+
+2. **Rule-Based Fixes** (instant, no LLM cost):
+   - Auto-increases wait time for JS-heavy sites (+3s for `NO_RESULTS`)
+   - Adds multilingual field mapping hints (e.g., "price" → "Miete", "Preis")
+   - Tells the LLM to ignore navigation / footer artifacts
+   - Adds de-duplication instructions
+
+3. **LLM-Powered Prompt Evolution** (when fill rate < 50%):
+   - Sends a **meta-prompt** to the LLM with: the original schema, the failed results, quality diagnostics, and a sample of the page content
+   - The LLM analyzes *why* extraction was poor and generates domain-specific instructions
+   - The evolved prompt is **versioned and stored** in the learning database for future use
+   - Each subsequent scrape of the same domain starts with the best-performing prompt
+
+4. **Adaptive Wait Times**:
+   - Poor quality on a domain → automatically increases page load wait (up to 15s)
+   - Excellent quality → gradually reduces wait time (saves time on fast sites)
+   - Wait time adjustments are stored per-domain and applied on future visits
+
+### What Gets Learned & Stored
+
+The learning memory (`~/.ai_scraper/memory.db`) contains five SQLite tables:
+
+| Table | What It Stores | How It's Used |
+|-------|---------------|---------------|
+| `domain_profiles` | Per-site settings: optimal wait time, avg quality, success/failure rates, cleaning strategy | Pre-apply optimal settings before scraping a known domain |
+| `extraction_history` | Full log of every scrape: URL, quality score, fill rate, duration, model used, issues encountered | Trend analysis, diagnostics, pattern detection |
+| `prompt_refinements` | Versioned evolved prompts per domain+schema pair, plus quality scores and usage counts | Auto-select the best-performing prompt for each domain/schema combo |
+| `cleaning_rules` | Domain-specific HTML cleaning rules (CSS class, ID, or tag selectors to remove) | Strip site-specific noise before sending content to the LLM |
+| `feedback` | User-provided quality corrections (`good`, `bad`, `correction`) | Train the system with human feedback |
+
+### Using the Learning System
+
+```python
+# Learning is ON by default
+scraper = AIScraper(provider="openrouter", api_key="...", learning=True)
+
+# Scrape — learning happens automatically behind the scenes
+results = scraper.scrape(url, Schema.APARTMENTS)
+
+# Check what the brain has learned
+print(scraper.stats())
+# → {"total_scrapes": 47, "unique_domains": 12, "avg_quality": 0.78, ...}
+
+# Diagnose a specific domain
+print(scraper.diagnose("www.immowelt.de"))
+# → {"success_rate": 0.85, "trend": "improving ↑", "recommendations": [...]}
+
+# Provide feedback to accelerate learning
+scraper.feedback(url, Schema.APARTMENTS, "good")
+scraper.feedback(url, Schema.APARTMENTS, "bad", "Prices were wrong")
+```
+
+```bash
+# CLI: view everything the brain has learned
+ai-scraper brain
+
+# CLI: diagnose a specific domain
+ai-scraper diagnose www.immowelt.de
+```
+
+### Key Characteristics
+
+- 🔄 **Fully autonomous** — no human intervention required for self-improvement
+- 💾 **Persistent** — all learning survives restarts, crashes, and reboots
+- 📈 **Trend-aware** — tracks whether quality is improving or declining per domain
+- 🧬 **Prompt evolution** — the AI literally writes better prompts *for itself*
+- ⏱️ **Adaptive timing** — learns the optimal page load delay per website
+- 🧹 **Learned cleaning** — discovers and remembers domain-specific HTML noise patterns
+- 🎯 **User-trainable** — accepts human feedback to correct and reinforce good behavior
+
+---
+
 ## 📋 Built-in Schemas
 
 AI Scraper comes with 10 predefined schemas for common data types:
@@ -107,8 +241,6 @@ AI Scraper comes with 10 predefined schemas for common data types:
 | `RESTAURANTS` | name, cuisine, rating, price_range, phone | Restaurant reviews |
 | `LINKS` | text, url, context | Link extraction |
 | `CONTACTS` | name, phone, email, address, website | Contact pages |
-
-### Custom Schemas
 
 Don't see what you need? Define your own:
 
@@ -128,38 +260,18 @@ results = scraper.scrape(url, my_schema)
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    AIScraper.scrape()                         │
-│                                                               │
-│  1. Check Memory ──→ 2. Chrome Fetch ──→ 3. HTML Clean       │
-│     (learned settings)  (anti-bot bypass)  (+ learned rules) │
-│                                                               │
-│  4. LLM Extract ──→ 5. Quality Score ──→ 6. Output           │
-│     (evolved prompts)  (auto-evaluate)    (JSON/CSV/table)   │
-│                              │                                │
-│                    ┌─────────▼──────────┐                    │
-│                    │ Quality < 60%?     │                    │
-│                    │   → Self-improve   │                    │
-│                    │   → Retry with     │                    │
-│                    │     better prompt  │                    │
-│                    └────────────────────┘                    │
-│                              │                                │
-│                    ┌─────────▼──────────┐                    │
-│                    │  💾 Learn & Store  │                    │
-│                    │  Domain profiles   │                    │
-│                    │  Evolved prompts   │                    │
-│                    │  Optimal settings  │                    │
-│                    └────────────────────┘                    │
-└──────────────────────────────────────────────────────────────┘
-
-Components:
-├── core.py       — Orchestrator with self-learning pipeline
-├── browser.py    — Headless Chrome with undetected_chromedriver
-├── llm.py        — Multi-provider LLM client (OpenRouter/OpenAI/Kilo/Ollama)
-├── memory.py     — SQLite-backed persistent learning memory
-├── learner.py    — Quality scoring, prompt evolution, domain diagnostics
-├── schemas.py    — 10 predefined extraction templates
-└── cli.py        — Rich CLI with brain/diagnose commands
+┌──────────────────────────────────────────────────────────────────────┐
+│                      AIScraper.scrape()                              │
+│                                                                      │
+│  core.py ─── Orchestrator with self-learning pipeline                │
+│    ├── browser.py ── Headless Chrome (undetected_chromedriver)        │
+│    ├── llm.py ────── Multi-provider LLM client                       │
+│    │                 (OpenRouter / OpenAI / Kilo / Ollama)            │
+│    ├── memory.py ─── SQLite-backed persistent learning memory        │
+│    ├── learner.py ── Quality scoring, prompt evolution, diagnostics   │
+│    ├── schemas.py ── 10 predefined extraction templates              │
+│    └── cli.py ────── Rich CLI with brain/diagnose commands           │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -207,10 +319,9 @@ ai-scraper/
 
 ---
 
-## 🔧 Advanced Usage
+## 💻 Advanced Usage
 
 ### As a Python Library
-
 ```python
 from ai_scraper import AIScraper
 
@@ -243,7 +354,6 @@ scraper.close()
 ```
 
 ### Batch Processing
-
 ```python
 urls = [
     "https://site1.com/listings",
@@ -256,7 +366,6 @@ results = scraper.scrape_multiple(urls, Schema.APARTMENTS)
 ```
 
 ### Using Pre-Fetched HTML
-
 ```python
 import requests
 html = requests.get("https://example.com").text
@@ -270,59 +379,7 @@ results = scraper.scrape(
 
 ---
 
-## 🧠 Self-Learning System
-
-AI Scraper has a persistent learning brain that gets smarter with every scrape:
-
-### How It Works
-
-| Feature | What It Does |
-|---------|-------------|
-| **Quality Scoring** | Auto-evaluates every extraction (fill rate, validity, uniqueness, content quality) |
-| **Prompt Evolution** | When quality is low, asks the LLM to analyze WHY and generate better prompts |
-| **Domain Profiling** | Remembers optimal settings per website (wait times, cleaning rules, success rates) |
-| **Adaptive Wait Times** | Learns which sites need longer JS render time and adjusts automatically |
-| **Self-Improvement Loop** | If score < 60%, retries with evolved strategy — no human intervention |
-| **Trend Analysis** | Tracks whether your extraction quality is improving or declining over time |
-
-### Brain Commands
-
-```bash
-# See what the brain has learned
-ai-scraper brain
-
-# Diagnose a specific domain
-ai-scraper diagnose www.immowelt.de
-```
-
-### Python API
-
-```python
-scraper = AIScraper(provider="openrouter", api_key="...", learning=True)
-
-# Scrape — learning happens automatically
-results = scraper.scrape(url, Schema.APARTMENTS)
-
-# Check what was learned
-print(scraper.stats())
-# → {"total_scrapes": 47, "unique_domains": 12, "avg_quality": 0.78, ...}
-
-# Diagnose a domain
-print(scraper.diagnose("www.immowelt.de"))
-# → {"success_rate": 0.85, "trend": "improving ↑", "recommendations": [...]}
-
-# Provide feedback to help it learn
-scraper.feedback(url, Schema.APARTMENTS, "good")
-scraper.feedback(url, Schema.APARTMENTS, "bad", "Prices were wrong")
-```
-
-### Learning Memory
-
-All learning is stored in `~/.ai_scraper/memory.db` (SQLite). The brain persists across sessions — kill the process, restart your PC, it remembers everything.
-
----
-
-## 📋 Changelog
+## 📝 Changelog
 
 ### v1.1.0 — Self-Learning Engine
 - 🧠 Persistent learning memory (SQLite)
@@ -356,5 +413,7 @@ All learning is stored in `~/.ai_scraper/memory.db` (SQLite). The brain persists
 **Extracted from the [OpenHouse Bot](https://github.com/masood1996-geo/openhouse-bot) project**
 
 *The AI scraping engine that powers global apartment hunting — now available as a standalone, self-learning tool.*
+
+MIT License · Built with 🧠 by [@masood1996-geo](https://github.com/masood1996-geo)
 
 </div>
