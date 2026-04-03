@@ -46,12 +46,34 @@ Traditional scrapers break when websites change their HTML. AI Scraper doesn't c
 
 ## ⚡ Quick Start
 
-### Installation
+### One-Command Install
+
+**Linux / macOS / WSL:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/masood1996-geo/ai-scraper/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/masood1996-geo/ai-scraper/main/install.ps1 | iex
+```
+
+The installer automatically:
+- ✅ Checks Python ≥3.10, pip, Git, and Chrome
+- ✅ Prompts to install any missing dependencies
+- ✅ Clones the repository and installs the package
+- ✅ Walks you through API key setup
+- ✅ Verifies the installation
+
+<details>
+<summary>Manual installation</summary>
+
 ```bash
 git clone https://github.com/masood1996-geo/ai-scraper.git
 cd ai-scraper
 pip install -e .
 ```
+</details>
 
 ### Your First Scrape (3 lines)
 ```python
@@ -375,6 +397,8 @@ ai-scraper/
 │   ├── scrape_jobs.py
 │   └── custom_schema.py
 ├── open_webui_tool.py    # 🖥️ Open WebUI GUI tool (paste into Workspace)
+├── install.sh            # 🚀 One-command installer (Linux/macOS/WSL)
+├── install.ps1           # 🚀 One-command installer (Windows PowerShell)
 ├── pyproject.toml
 ├── README.md
 └── .gitignore
@@ -444,7 +468,10 @@ results = scraper.scrape(
 
 ## 📝 Changelog
 
-### v1.2.0 — Open WebUI GUI Integration
+### v1.2.0 — Open WebUI GUI + One-Command Installer
+- 🚀 One-command installer for Linux/macOS/WSL (`curl | bash`) and Windows (`irm | iex`)
+- 🚀 Automatic dependency checking (Python, pip, Git, Chrome) with guided install
+- 🚀 Interactive API key setup with provider selection
 - 🖥️ Full Open WebUI Tool with 5 tool methods (scrape, custom scrape, ask, schemas, brain stats)
 - 🖥️ Configurable Valves for API key, provider, model, and timing settings
 - 🖥️ Self-contained tool file — no package installation required (just pip dependencies)
