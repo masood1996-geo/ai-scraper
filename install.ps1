@@ -207,9 +207,9 @@ function Install-MissingSystemDeps {
                 if (Prompt-YN "Install Python 3.12?") {
                     Write-Info "Installing Python..."
                     if ($hasWinget) {
-                        winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements
+                        cmd /c "winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements 2>&1"
                     } elseif ($hasChoco) {
-                        choco install python312 -y
+                        cmd /c "choco install python312 -y 2>&1"
                     } else {
                         Write-Fail "No package manager found (winget or choco)."
                         Write-Info "Download Python from: https://python.org/downloads"
@@ -219,20 +219,20 @@ function Install-MissingSystemDeps {
                     Write-Success "Python installed — restart your terminal to use it"
                 } else {
                     Write-Fail "Python is required. Install from https://python.org"
-                    exit 1
+                    return
                 }
             }
             "pip" {
                 Write-Info "Installing pip..."
-                & $script:PythonCmd -m ensurepip --default-pip
+                cmd /c "$($script:PythonCmd) -m ensurepip --default-pip 2>&1"
                 Write-Success "pip installed"
             }
             "git" {
                 if (Prompt-YN "Install Git?") {
                     if ($hasWinget) {
-                        winget install Git.Git --accept-package-agreements --accept-source-agreements
+                        cmd /c "winget install Git.Git --accept-package-agreements --accept-source-agreements 2>&1"
                     } elseif ($hasChoco) {
-                        choco install git -y
+                        cmd /c "choco install git -y 2>&1"
                     } else {
                         Write-Info "Download Git from: https://git-scm.com/downloads"
                         Read-Host "Press Enter after installing Git..."
@@ -240,7 +240,7 @@ function Install-MissingSystemDeps {
                     Write-Success "Git installed"
                 } else {
                     Write-Fail "Git is required for installation."
-                    exit 1
+                    return
                 }
             }
         }
@@ -256,9 +256,9 @@ function Install-Chrome {
     if (Prompt-YN "Install Google Chrome?") {
         Write-Info "Installing Chrome..."
         if (Test-CommandExists "winget") {
-            winget install Google.Chrome --accept-package-agreements --accept-source-agreements
+            cmd /c "winget install Google.Chrome --accept-package-agreements --accept-source-agreements 2>&1"
         } elseif (Test-CommandExists "choco") {
-            choco install googlechrome -y
+            cmd /c "choco install googlechrome -y 2>&1"
         } else {
             Start-Process "https://google.com/chrome"
             Write-Info "Opening Chrome download page in your browser..."
@@ -276,22 +276,24 @@ function Install-AIScraper {
     $installDir = Join-Path $HOME "ai-scraper"
 
     # Clone or update repo
+    # NOTE: We use cmd /c to run git/pip because Windows PowerShell 5.1
+    # treats ANY stderr output from native commands as a terminating error
+    # when running via irm|iex. cmd /c handles stderr natively.
+
     if (Test-Path $installDir) {
         Write-Info "Found existing installation at $installDir"
         if (Prompt-YN "Update existing installation?") {
             Push-Location $installDir
-            $gitOut = & git pull origin main 2>&1 | ForEach-Object { $_.ToString() }
-            $gitOut | ForEach-Object { Write-Host "    $_" }
+            cmd /c "git pull origin main 2>&1"
             Pop-Location
             Write-Success "Updated to latest version"
         }
     } else {
         Write-Info "Cloning from GitHub..."
-        $gitOut = & git clone https://github.com/masood1996-geo/ai-scraper.git $installDir 2>&1 | ForEach-Object { $_.ToString() }
-        $gitOut | ForEach-Object { Write-Host "    $_" }
-        if ($LASTEXITCODE -ne 0) {
+        cmd /c "git clone https://github.com/masood1996-geo/ai-scraper.git `"$installDir`" 2>&1"
+        if (-not (Test-Path $installDir)) {
             Write-Fail "Git clone failed"
-            exit 1
+            return
         }
         Write-Success "Cloned to $installDir"
     }
@@ -303,49 +305,28 @@ function Install-AIScraper {
 
     $installSuccess = $false
 
-    try {
-        $pipOutput = & $script:PythonCmd -m pip install "." --user 2>&1 | ForEach-Object { $_.ToString() }
-        $pipOutput | ForEach-Object { Write-Host "    $_" }
-        # Check both exit code and output text (pip sometimes exits non-zero due to upgrade notices)
-        if ($LASTEXITCODE -eq 0 -or ($pipOutput -join "`n") -match "Successfully installed") {
-            $installSuccess = $true
-        }
-    } catch {
-        Write-Warn "pip install threw an exception: $($_.Exception.Message)"
+    cmd /c "$($script:PythonCmd) -m pip install . --user 2>&1"
+    # Verify install worked by checking if the package is importable
+    $importCheck = cmd /c "$($script:PythonCmd) -c `"from ai_scraper import AIScraper; print('OK')`" 2>&1"
+    if ($importCheck -match "OK") {
+        $installSuccess = $true
     }
 
     # Strategy 2: If pyproject install fails, install deps directly
     if (-not $installSuccess) {
-        Write-Warn "Package install failed — installing dependencies individually..."
+        Write-Warn "Package install had issues — installing dependencies individually..."
 
-        $deps = @(
-            "openai>=1.0",
-            "beautifulsoup4>=4.12",
-            "lxml>=4.9",
-            "requests>=2.31",
-            "undetected-chromedriver>=3.5",
-            "rich>=13.0",
-            "click>=8.1"
-        )
+        cmd /c "$($script:PythonCmd) -m pip install --user `"openai>=1.0`" `"beautifulsoup4>=4.12`" `"lxml>=4.9`" `"requests>=2.31`" `"undetected-chromedriver>=3.5`" `"rich>=13.0`" `"click>=8.1`" 2>&1"
 
-        $depOutput = & $script:PythonCmd -m pip install $deps --user 2>&1 | ForEach-Object { $_.ToString() }
-        $depOutput | ForEach-Object { Write-Host "    $_" }
+        # Try install again without build isolation
+        cmd /c "$($script:PythonCmd) -m pip install . --no-build-isolation --user 2>&1"
 
-        if ($LASTEXITCODE -ne 0 -and -not (($depOutput -join "`n") -match "Successfully installed")) {
-            Write-Fail "Dependency installation failed"
-            Write-Info "Try manually: $script:PythonCmd -m pip install $($deps -join ' ')"
-            Pop-Location
-            return
-        }
-
-        # Try non-editable install without build isolation as fallback
-        $fallbackOutput = & $script:PythonCmd -m pip install "." --no-build-isolation --user 2>&1 | ForEach-Object { $_.ToString() }
-        $fallbackOutput | ForEach-Object { Write-Host "    $_" }
-        if ($LASTEXITCODE -eq 0 -or ($fallbackOutput -join "`n") -match "Successfully installed") {
+        # Check again
+        $importCheck2 = cmd /c "$($script:PythonCmd) -c `"from ai_scraper import AIScraper; print('OK')`" 2>&1"
+        if ($importCheck2 -match "OK") {
             $installSuccess = $true
         } else {
-            # Deps are installed even if package install fails — user can use them
-            Write-Warn "Package registration skipped — all dependencies are installed"
+            Write-Warn "Package registration skipped — dependencies are installed"
             Write-Info "The CLI may not be available, but Python imports will work"
             Write-Info "Add to PYTHONPATH: `$env:PYTHONPATH = '$installDir;' + `$env:PYTHONPATH"
         }
