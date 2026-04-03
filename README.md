@@ -10,6 +10,7 @@ AI Scraper combines headless Chrome with LLM intelligence and a **self-learning 
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![AI Powered](https://img.shields.io/badge/AI-LLM%20Powered-FF6F00?style=for-the-badge&logo=openai&logoColor=white)]()
 [![Self Learning](https://img.shields.io/badge/Self--Learning-Adaptive%20AI-blueviolet?style=for-the-badge)]()
+[![Open WebUI](https://img.shields.io/badge/Open_WebUI-GUI_Ready-00C7B7?style=for-the-badge&logo=openai&logoColor=white)]()
 
 ---
 
@@ -276,6 +277,64 @@ results = scraper.scrape(url, my_schema)
 
 ---
 
+## 🖥️ Open WebUI Integration (GUI)
+
+AI Scraper includes a ready-to-use **Open WebUI Tool** that gives you a full GUI interface — just paste the tool file and start scraping through your chat interface.
+
+### Setup
+
+1. **Install AI Scraper** on your Open WebUI server:
+   ```bash
+   pip install openai>=1.0 beautifulsoup4>=4.12 lxml>=4.9 requests>=2.31 undetected-chromedriver>=3.5
+   ```
+
+2. **Open WebUI → Workspace → Tools → "+"**
+
+3. **Paste** the contents of [`open_webui_tool.py`](open_webui_tool.py) into the editor
+
+4. **Configure** your API key and provider in Tool Settings (Valves):
+   - `llm_provider`: `openrouter`, `openai`, `kilo`, or `ollama`
+   - `api_key`: Your API key
+   - `model`: Specific model (or leave empty for default)
+
+5. **Enable** the tool on your model in Workspace → Models
+
+### Available Tool Methods
+
+| Tool Method | What It Does | Example Prompt |
+|-------------|-------------|----------------|
+| `scrape_url` | Extract data using a predefined schema | *"Scrape job listings from https://example.com/jobs"* |
+| `scrape_with_custom_fields` | Extract custom fields you define | *"Scrape name, price, rating from https://example.com/products"* |
+| `ask_page` | Ask a question about any webpage | *"What products are listed on https://example.com?"* |
+| `list_schemas` | Show all available schemas | *"What schemas can I use for scraping?"* |
+| `show_brain_stats` | View learning statistics | *"Show me the scraper brain stats"* |
+
+### Example Chat Prompts
+
+```
+💬 "Scrape all apartment listings from https://immowelt.de/berlin using the apartments schema"
+
+💬 "Extract job title, company, salary, and location from https://indeed.com/jobs?q=python"
+
+💬 "What is the main topic of https://example.com/about?"
+
+💬 "List all available scraping schemas"
+
+💬 "How is the AI scraper's brain performing?"
+```
+
+### Valves Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `llm_provider` | LLM provider to use | `openrouter` |
+| `api_key` | API key for the provider | *(empty — set via env var or here)* |
+| `model` | Specific model | *(provider default)* |
+| `page_load_timeout` | Page load timeout (seconds) | `30` |
+| `wait_after_load` | Wait for JS rendering (seconds) | `2.0` |
+
+---
+
 ## 🤖 Supported AI Providers
 
 | Provider | Setup | Free Tier? | Free Model |
@@ -315,6 +374,7 @@ ai-scraper/
 │   ├── scrape_apartments.py
 │   ├── scrape_jobs.py
 │   └── custom_schema.py
+├── open_webui_tool.py    # 🖥️ Open WebUI GUI tool (paste into Workspace)
 ├── pyproject.toml
 ├── README.md
 └── .gitignore
@@ -383,6 +443,13 @@ results = scraper.scrape(
 ---
 
 ## 📝 Changelog
+
+### v1.2.0 — Open WebUI GUI Integration
+- 🖥️ Full Open WebUI Tool with 5 tool methods (scrape, custom scrape, ask, schemas, brain stats)
+- 🖥️ Configurable Valves for API key, provider, model, and timing settings
+- 🖥️ Self-contained tool file — no package installation required (just pip dependencies)
+- 🖥️ Formatted markdown output with expandable raw JSON data
+- 🖥️ Custom field extraction via chat prompts
 
 ### v1.1.0 — Self-Learning Engine
 - 🧠 Persistent learning memory (SQLite)
