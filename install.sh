@@ -354,7 +354,7 @@ install_ai_scraper() {
 
     local install_dir="$HOME/ai-scraper"
 
-    # Check if already cloned
+    # Clone or update repo
     if [ -d "$install_dir" ]; then
         info "Found existing installation at $install_dir"
         if prompt_yn "Update existing installation?"; then
@@ -370,10 +370,55 @@ install_ai_scraper() {
 
     cd "$install_dir"
 
-    # Install Python package
-    info "Installing Python dependencies..."
-    $PIP_CMD install -e "." 2>&1 | tail -3
-    success "All Python dependencies installed"
+    # Strategy 1: Try pip install . (non-editable, most reliable)
+    info "Installing package and dependencies..."
+    local install_ok=false
+
+    set +e  # Don't exit on error during install attempts
+    $PYTHON_CMD -m pip install "." --user 2>&1
+    if [ $? -eq 0 ]; then
+        install_ok=true
+    fi
+
+    # Strategy 2: If pyproject install fails, install deps directly
+    if [ "$install_ok" = false ]; then
+        warn "Package install failed — installing dependencies individually..."
+
+        $PYTHON_CMD -m pip install --user \
+            "openai>=1.0" \
+            "beautifulsoup4>=4.12" \
+            "lxml>=4.9" \
+            "requests>=2.31" \
+            "undetected-chromedriver>=3.5" \
+            "rich>=13.0" \
+            "click>=8.1" \
+            2>&1
+
+        if [ $? -ne 0 ]; then
+            fail "Dependency installation failed"
+            info "Try manually: $PYTHON_CMD -m pip install openai beautifulsoup4 lxml requests undetected-chromedriver rich click"
+            set -e
+            return 1
+        fi
+
+        # Try editable install without build isolation
+        $PYTHON_CMD -m pip install -e "." --no-build-isolation --user 2>&1
+        if [ $? -eq 0 ]; then
+            install_ok=true
+        else
+            warn "Editable install skipped — dependencies are installed"
+            info "Add $install_dir to PYTHONPATH to use as a library"
+            info "export PYTHONPATH=\"$install_dir:\$PYTHONPATH\""
+        fi
+    fi
+
+    set -e  # Re-enable exit on error
+
+    if [ "$install_ok" = true ]; then
+        success "AI Scraper installed successfully"
+    else
+        warn "Package installed with warnings (dependencies are available)"
+    fi
 
     return 0
 }

@@ -275,33 +275,88 @@ function Install-AIScraper {
 
     $installDir = Join-Path $HOME "ai-scraper"
 
+    # Clone or update repo
     if (Test-Path $installDir) {
         Write-Info "Found existing installation at $installDir"
         if (Prompt-YN "Update existing installation?") {
             Push-Location $installDir
-            & git pull origin main
+            & git pull origin main 2>&1 | Out-Host
             Pop-Location
             Write-Success "Updated to latest version"
         }
     } else {
         Write-Info "Cloning from GitHub..."
-        & git clone https://github.com/masood1996-geo/ai-scraper.git $installDir
+        & git clone https://github.com/masood1996-geo/ai-scraper.git $installDir 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "Git clone failed"
+            exit 1
+        }
         Write-Success "Cloned to $installDir"
     }
 
     Push-Location $installDir
-    Write-Info "Installing Python dependencies..."
 
-    if ($script:PipCmd -match " ") {
-        # It's something like "python -m pip"
-        $parts = $script:PipCmd -split " "
-        & $parts[0] $parts[1..($parts.Length-1)] install -e "."
-    } else {
-        & $script:PipCmd install -e "."
+    # Strategy 1: Try pip install . (non-editable, most reliable)
+    Write-Info "Installing package and dependencies..."
+
+    $installSuccess = $false
+    $ErrorActionPreference = "Continue"
+
+    try {
+        & $script:PythonCmd -m pip install "." --user 2>&1 | Out-Host
+        if ($LASTEXITCODE -eq 0) {
+            $installSuccess = $true
+        }
+    } catch {}
+
+    # Strategy 2: If pyproject install fails, install deps directly
+    if (-not $installSuccess) {
+        Write-Warn "Package install failed — installing dependencies individually..."
+
+        $deps = @(
+            "openai>=1.0",
+            "beautifulsoup4>=4.12",
+            "lxml>=4.9",
+            "requests>=2.31",
+            "undetected-chromedriver>=3.5",
+            "rich>=13.0",
+            "click>=8.1"
+        )
+
+        $depString = $deps -join " "
+        & $script:PythonCmd -m pip install $deps --user 2>&1 | Out-Host
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "Dependency installation failed"
+            Write-Info "Try manually: $script:PythonCmd -m pip install $depString"
+            Pop-Location
+            return
+        }
+
+        # Add the package dir to PYTHONPATH so imports work
+        $sitePkgs = & $script:PythonCmd -c "import site; print(site.getusersitepackages())" 2>&1
+        Write-Info "Dependencies installed to: $sitePkgs"
+
+        # Try editable install without build isolation (avoids setuptools backend issue)
+        & $script:PythonCmd -m pip install -e "." --no-build-isolation --user 2>&1 | Out-Host
+        if ($LASTEXITCODE -eq 0) {
+            $installSuccess = $true
+        } else {
+            # Even if editable fails, deps are installed — user can import manually
+            Write-Warn "Editable install skipped — dependencies are installed"
+            Write-Info "You can import the package by adding $installDir to your PYTHONPATH"
+            Write-Info "Or run: set PYTHONPATH=$installDir;%PYTHONPATH%"
+        }
     }
 
+    $ErrorActionPreference = "Stop"
     Pop-Location
-    Write-Success "All Python dependencies installed"
+
+    if ($installSuccess) {
+        Write-Success "AI Scraper installed successfully"
+    } else {
+        Write-Warn "Package installed with warnings (dependencies are available)"
+    }
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
