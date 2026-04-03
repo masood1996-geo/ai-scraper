@@ -252,5 +252,115 @@ def _display_results(results: list, schema: dict):
     console.print(table)
 
 
+@main.command(name="brain")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
+def brain_stats(verbose):
+    """Show learning brain statistics and what the scraper has learned."""
+    _setup_logging(verbose)
+    rprint(BANNER.format(version=__version__))
+
+    from ai_scraper.memory import Memory
+
+    mem = Memory()
+    stats = {}
+
+    try:
+        # Raw stats
+        stats = mem.get_stats()
+    except Exception as e:
+        console.print(f"[red]Error reading memory: {e}[/red]")
+        return
+    finally:
+        mem.close()
+
+    # Summary panel
+    summary = (
+        f"🧠 [bold]Total Scrapes:[/bold]  {stats.get('total_scrapes', 0)}\n"
+        f"🌐 [bold]Unique Domains:[/bold] {stats.get('unique_domains', 0)}\n"
+        f"📊 [bold]Avg Quality:[/bold]    {stats.get('avg_quality', 0):.0%}\n"
+        f"🔧 [bold]Prompt Refinements:[/bold] {stats.get('total_refinements', 0)}\n"
+        f"📝 [bold]User Feedback:[/bold]  {stats.get('total_feedback', 0)}"
+    )
+    console.print(Panel(summary, title="[bold cyan]🧠 Learning Brain[/bold cyan]", border_style="cyan"))
+
+    # Top domains table
+    top = stats.get("top_domains", [])
+    if top:
+        table = Table(
+            title="[bold]🌐 Known Domains[/bold]",
+            show_header=True,
+            header_style="bold green",
+        )
+        table.add_column("Domain", style="cyan", min_width=30)
+        table.add_column("Scrapes", justify="right")
+        table.add_column("Success", justify="right")
+        table.add_column("Failures", justify="right")
+        table.add_column("Avg Quality", justify="right")
+
+        for d in top:
+            quality_str = f"{d['avg_quality']:.0%}"
+            quality_color = "green" if d["avg_quality"] > 0.6 else "yellow" if d["avg_quality"] > 0.35 else "red"
+            table.add_row(
+                d["domain"],
+                str(d["total_scrapes"]),
+                str(d["total_successes"]),
+                str(d["total_failures"]),
+                f"[{quality_color}]{quality_str}[/{quality_color}]",
+            )
+
+        console.print(table)
+    else:
+        console.print("[dim]No scraping history yet. Run some scrapes to start learning![/dim]")
+
+
+@main.command()
+@click.argument("domain")
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
+def diagnose(domain, verbose):
+    """Analyze a domain and show diagnostic report with recommendations."""
+    _setup_logging(verbose)
+    rprint(BANNER.format(version=__version__))
+
+    from ai_scraper.memory import Memory
+    from ai_scraper.learner import Learner
+
+    mem = Memory()
+    learner = Learner(memory=mem)
+
+    try:
+        report = learner.diagnose_domain(domain)
+    finally:
+        mem.close()
+
+    # Header
+    console.print(Panel(
+        f"🔍 [bold]{domain}[/bold]\n"
+        f"Total attempts: {report['total_attempts']}\n"
+        f"Success rate: {report['success_rate']:.0%}\n"
+        f"Avg quality: {report['avg_quality']:.0%}\n"
+        f"Trend: {report['trend']}",
+        title="[bold cyan]Domain Diagnostic[/bold cyan]",
+        border_style="cyan",
+    ))
+
+    # Common issues
+    if report["common_issues"]:
+        table = Table(title="[bold]⚠️ Recurring Issues[/bold]", show_header=True)
+        table.add_column("Issue", style="yellow")
+        table.add_column("Occurrences", justify="right")
+        for issue, count in report["common_issues"]:
+            table.add_row(issue, str(count))
+        console.print(table)
+
+    # Recommendations
+    if report["recommendations"]:
+        console.print("\n[bold green]💡 Recommendations:[/bold green]")
+        for rec in report["recommendations"]:
+            console.print(f"  • {rec}")
+    else:
+        console.print("\n[green]✅ No issues detected — this domain is performing well.[/green]")
+
+
 if __name__ == "__main__":
     main()
+
