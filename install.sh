@@ -535,7 +535,7 @@ verify_installation() {
     if $PYTHON_CMD -c "from ai_scraper import AIScraper; print('OK')" 2>/dev/null | grep -q "OK"; then
         success "Python package importable"
     else
-        warn "Package import check failed — try: pip install -e ."
+        warn "Package import check failed — try: pip install ."
     fi
 
     # Summary
@@ -544,19 +544,94 @@ verify_installation() {
     echo -e "${GREEN}${BOLD}  ✅ AI Scraper installed successfully!${NC}"
     echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    echo -e "  ${BOLD}Quick Start:${NC}"
+}
+
+launch_open_webui() {
+    step "Open WebUI Setup"
+
+    local install_dir="$HOME/ai-scraper"
+    local tool_file="$install_dir/open_webui_tool.py"
+
+    if [ ! -f "$tool_file" ]; then
+        warn "open_webui_tool.py not found in $install_dir"
+        return
+    fi
+
+    # Copy tool content to clipboard
+    if command_exists pbcopy; then
+        cat "$tool_file" | pbcopy
+        success "Tool code copied to clipboard!"
+    elif command_exists xclip; then
+        cat "$tool_file" | xclip -selection clipboard
+        success "Tool code copied to clipboard!"
+    elif command_exists xsel; then
+        cat "$tool_file" | xsel --clipboard
+        success "Tool code copied to clipboard!"
+    else
+        warn "Could not copy to clipboard — copy manually from: $tool_file"
+    fi
+
+    # Detect Open WebUI URL
+    local open_webui_url=""
+    for port in 3000 8080 8443; do
+        if curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port" 2>/dev/null | grep -q "200"; then
+            open_webui_url="http://localhost:$port"
+            break
+        fi
+    done
+
+    if [ -n "$open_webui_url" ]; then
+        success "Open WebUI detected at $open_webui_url"
+        echo ""
+        echo -e "  ${BOLD}Opening Open WebUI in your browser...${NC}"
+        echo ""
+        echo -e "  ${CYAN}📋 The tool code is already in your clipboard!${NC}"
+        echo -e "  ${BOLD}Follow these steps:${NC}"
+        echo -e "    1) Go to ${CYAN}Workspace → Tools${NC}"
+        echo -e "    2) Click ${CYAN}+ Add Tool${NC}"
+        echo -e "    3) ${YELLOW}Ctrl+A${NC} to select all, then ${YELLOW}Ctrl+V${NC} to paste"
+        echo -e "    4) Click ${CYAN}Save${NC}"
+        echo -e "    5) Start a new chat and use the AI Scraper tools!"
+        echo ""
+
+        # Open browser
+        if command_exists xdg-open; then
+            xdg-open "$open_webui_url" 2>/dev/null &
+        elif command_exists open; then
+            open "$open_webui_url"
+        fi
+    else
+        warn "Open WebUI not detected on localhost"
+        echo ""
+        echo -e "  ${CYAN}📋 The tool code is in your clipboard (if supported)${NC}"
+        echo ""
+        echo -e "  ${BOLD}To use AI Scraper with Open WebUI:${NC}"
+        echo ""
+        echo -e "  ${CYAN}Option 1: Docker (recommended)${NC}"
+        echo "    docker run -d -p 3000:8080 --name open-webui ghcr.io/open-webui/open-webui:main"
+        echo -e "    Then open: ${CYAN}http://localhost:3000${NC}"
+        echo ""
+        echo -e "  ${CYAN}Option 2: Pip install${NC}"
+        echo "    pip install open-webui"
+        echo "    open-webui serve"
+        echo -e "    Then open: ${CYAN}http://localhost:8080${NC}"
+        echo ""
+        echo -e "  ${BOLD}After Open WebUI is running:${NC}"
+        echo -e "    1) Go to ${CYAN}Workspace → Tools${NC}"
+        echo -e "    2) Click ${CYAN}+ Add Tool${NC}"
+        echo -e "    3) ${YELLOW}Ctrl+A${NC} to select all, then ${YELLOW}Ctrl+V${NC} to paste"
+        echo -e "    4) Click ${CYAN}Save${NC}"
+        echo ""
+    fi
+
+    echo ""
+    echo -e "  ${BOLD}Quick CLI alternative (no Open WebUI needed):${NC}"
     echo ""
     echo -e "    ${CYAN}# Scrape a website${NC}"
     echo "    ai-scraper scrape https://example.com/listings --schema apartments"
     echo ""
     echo -e "    ${CYAN}# Ask a question about a page${NC}"
     echo "    ai-scraper ask https://example.com \"What products are listed?\""
-    echo ""
-    echo -e "    ${CYAN}# Use in Python${NC}"
-    echo "    python -c \"from ai_scraper import AIScraper, Schema; print('Ready!')\""
-    echo ""
-    echo -e "    ${CYAN}# Open WebUI GUI${NC}"
-    echo "    Paste open_webui_tool.py into Workspace → Tools"
     echo ""
     echo -e "  ${DIM}Documentation: https://github.com/masood1996-geo/ai-scraper${NC}"
     echo ""
@@ -610,6 +685,10 @@ main() {
 
     # Phase 6: Verify
     verify_installation
+
+    # Phase 7: Open WebUI launch
+    launch_open_webui
 }
 
 main "$@"
+

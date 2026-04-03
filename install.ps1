@@ -429,7 +429,7 @@ function Verify-Installation {
     # Check CLI
     if (Test-CommandExists "ai-scraper") {
         try {
-            $version = & ai-scraper --version 2>&1
+            $version = cmd /c "ai-scraper --version 2>&1"
             Write-Success "CLI command available: ai-scraper $version"
         } catch {
             Write-Success "CLI command available"
@@ -440,7 +440,7 @@ function Verify-Installation {
     }
 
     # Check import
-    $importCheck = & $script:PythonCmd -c "from ai_scraper import AIScraper; print('OK')" 2>&1
+    $importCheck = cmd /c "$($script:PythonCmd) -c `"from ai_scraper import AIScraper; print('OK')`" 2>&1"
     if ($importCheck -match "OK") {
         Write-Success "Python package importable"
     } else {
@@ -453,19 +453,92 @@ function Verify-Installation {
     Write-Host "  ✅ AI Scraper installed successfully!" -ForegroundColor Green
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  Quick Start:" -ForegroundColor White
+}
+
+function Launch-OpenWebUI {
+    Write-Step "Open WebUI Setup"
+
+    $installDir = Join-Path $HOME "ai-scraper"
+    $toolFile = Join-Path $installDir "open_webui_tool.py"
+
+    if (-not (Test-Path $toolFile)) {
+        Write-Warn "open_webui_tool.py not found in $installDir"
+        return
+    }
+
+    # Copy tool content to clipboard
+    try {
+        Get-Content $toolFile -Raw | Set-Clipboard
+        Write-Success "Tool code copied to clipboard!"
+    } catch {
+        Write-Warn "Could not copy to clipboard — copy manually from: $toolFile"
+    }
+
+    # Detect Open WebUI URL
+    $openWebUIUrl = $null
+    $ports = @(3000, 8080, 8443)
+
+    foreach ($port in $ports) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) {
+                $openWebUIUrl = "http://localhost:$port"
+                break
+            }
+        } catch {}
+    }
+
+    if ($openWebUIUrl) {
+        Write-Success "Open WebUI detected at $openWebUIUrl"
+        Write-Host ""
+        Write-Host "  Opening Open WebUI in your browser..." -ForegroundColor White
+        Write-Host ""
+        Write-Host "  📋 The tool code is already in your clipboard!" -ForegroundColor Cyan
+        Write-Host "  Follow these steps:" -ForegroundColor White
+        Write-Host "    1) Go to " -NoNewline; Write-Host "Workspace → Tools" -ForegroundColor Cyan
+        Write-Host "    2) Click " -NoNewline; Write-Host "+ Add Tool" -ForegroundColor Cyan
+        Write-Host "    3) " -NoNewline; Write-Host "Ctrl+A" -ForegroundColor Yellow -NoNewline; Write-Host " to select all, then " -NoNewline; Write-Host "Ctrl+V" -ForegroundColor Yellow -NoNewline; Write-Host " to paste"
+        Write-Host "    4) Click " -NoNewline; Write-Host "Save" -ForegroundColor Cyan
+        Write-Host "    5) Start a new chat and use the AI Scraper tools!" -ForegroundColor White
+        Write-Host ""
+
+        Start-Process "$openWebUIUrl"
+    } else {
+        Write-Warn "Open WebUI not detected on localhost"
+        Write-Host ""
+        Write-Host "  📋 The tool code is already in your clipboard!" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  To use AI Scraper with Open WebUI:" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  Option 1: " -NoNewline; Write-Host "Docker (recommended)" -ForegroundColor Cyan
+        Write-Host "    docker run -d -p 3000:8080 --name open-webui ghcr.io/open-webui/open-webui:main"
+        Write-Host "    Then open: " -NoNewline; Write-Host "http://localhost:3000" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  Option 2: " -NoNewline; Write-Host "Pip install" -ForegroundColor Cyan
+        Write-Host "    pip install open-webui"
+        Write-Host "    open-webui serve"
+        Write-Host "    Then open: " -NoNewline; Write-Host "http://localhost:8080" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  After Open WebUI is running:" -ForegroundColor White
+        Write-Host "    1) Go to " -NoNewline; Write-Host "Workspace → Tools" -ForegroundColor Cyan
+        Write-Host "    2) Click " -NoNewline; Write-Host "+ Add Tool" -ForegroundColor Cyan
+        Write-Host "    3) " -NoNewline; Write-Host "Ctrl+A" -ForegroundColor Yellow -NoNewline; Write-Host " to select all, then " -NoNewline; Write-Host "Ctrl+V" -ForegroundColor Yellow -NoNewline; Write-Host " to paste"
+        Write-Host "    4) Click " -NoNewline; Write-Host "Save" -ForegroundColor Cyan
+        Write-Host ""
+
+        if (Prompt-YN "Open the tool file in your text editor?") {
+            Start-Process "notepad.exe" -ArgumentList $toolFile
+        }
+    }
+
+    Write-Host ""
+    Write-Host "  Quick CLI alternative (no Open WebUI needed):" -ForegroundColor White
     Write-Host ""
     Write-Host "    # Scrape a website" -ForegroundColor Cyan
     Write-Host '    ai-scraper scrape https://example.com/listings --schema apartments'
     Write-Host ""
     Write-Host "    # Ask a question about a page" -ForegroundColor Cyan
     Write-Host '    ai-scraper ask https://example.com "What products are listed?"'
-    Write-Host ""
-    Write-Host "    # Use in Python" -ForegroundColor Cyan
-    Write-Host '    python -c "from ai_scraper import AIScraper, Schema; print(''Ready!'')"'
-    Write-Host ""
-    Write-Host "    # Open WebUI GUI" -ForegroundColor Cyan
-    Write-Host "    Paste open_webui_tool.py into Workspace → Tools"
     Write-Host ""
     Write-Host "  Documentation: https://github.com/masood1996-geo/ai-scraper" -ForegroundColor DarkGray
     Write-Host ""
@@ -519,6 +592,10 @@ function Main {
 
     # Phase 6: Verify
     Verify-Installation
+
+    # Phase 7: Open WebUI launch
+    Launch-OpenWebUI
 }
 
 Main
+
