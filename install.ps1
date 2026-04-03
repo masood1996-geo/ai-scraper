@@ -9,7 +9,7 @@
 #    .\install.ps1
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 # ── Banner ────────────────────────────────────────────────────────────
 function Show-Banner {
@@ -280,13 +280,15 @@ function Install-AIScraper {
         Write-Info "Found existing installation at $installDir"
         if (Prompt-YN "Update existing installation?") {
             Push-Location $installDir
-            & git pull origin main 2>&1 | Out-Host
+            $gitOut = & git pull origin main 2>&1 | ForEach-Object { $_.ToString() }
+            $gitOut | ForEach-Object { Write-Host "    $_" }
             Pop-Location
             Write-Success "Updated to latest version"
         }
     } else {
         Write-Info "Cloning from GitHub..."
-        & git clone https://github.com/masood1996-geo/ai-scraper.git $installDir 2>&1 | Out-Host
+        $gitOut = & git clone https://github.com/masood1996-geo/ai-scraper.git $installDir 2>&1 | ForEach-Object { $_.ToString() }
+        $gitOut | ForEach-Object { Write-Host "    $_" }
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "Git clone failed"
             exit 1
@@ -300,16 +302,17 @@ function Install-AIScraper {
     Write-Info "Installing package and dependencies..."
 
     $installSuccess = $false
-    $ErrorActionPreference = "Continue"
 
     try {
-        $pipOutput = & $script:PythonCmd -m pip install "." --user 2>&1
-        $pipOutput | Out-Host
+        $pipOutput = & $script:PythonCmd -m pip install "." --user 2>&1 | ForEach-Object { $_.ToString() }
+        $pipOutput | ForEach-Object { Write-Host "    $_" }
         # Check both exit code and output text (pip sometimes exits non-zero due to upgrade notices)
         if ($LASTEXITCODE -eq 0 -or ($pipOutput -join "`n") -match "Successfully installed") {
             $installSuccess = $true
         }
-    } catch {}
+    } catch {
+        Write-Warn "pip install threw an exception: $($_.Exception.Message)"
+    }
 
     # Strategy 2: If pyproject install fails, install deps directly
     if (-not $installSuccess) {
@@ -325,33 +328,29 @@ function Install-AIScraper {
             "click>=8.1"
         )
 
-        $depString = $deps -join " "
-        & $script:PythonCmd -m pip install $deps --user 2>&1 | Out-Host
+        $depOutput = & $script:PythonCmd -m pip install $deps --user 2>&1 | ForEach-Object { $_.ToString() }
+        $depOutput | ForEach-Object { Write-Host "    $_" }
 
-        if ($LASTEXITCODE -ne 0) {
+        if ($LASTEXITCODE -ne 0 -and -not (($depOutput -join "`n") -match "Successfully installed")) {
             Write-Fail "Dependency installation failed"
-            Write-Info "Try manually: $script:PythonCmd -m pip install $depString"
+            Write-Info "Try manually: $script:PythonCmd -m pip install $($deps -join ' ')"
             Pop-Location
             return
         }
 
-        # Add the package dir to PYTHONPATH so imports work
-        $sitePkgs = & $script:PythonCmd -c "import site; print(site.getusersitepackages())" 2>&1
-        Write-Info "Dependencies installed to: $sitePkgs"
-
-        # Try editable install without build isolation (avoids setuptools backend issue)
-        & $script:PythonCmd -m pip install -e "." --no-build-isolation --user 2>&1 | Out-Host
-        if ($LASTEXITCODE -eq 0) {
+        # Try non-editable install without build isolation as fallback
+        $fallbackOutput = & $script:PythonCmd -m pip install "." --no-build-isolation --user 2>&1 | ForEach-Object { $_.ToString() }
+        $fallbackOutput | ForEach-Object { Write-Host "    $_" }
+        if ($LASTEXITCODE -eq 0 -or ($fallbackOutput -join "`n") -match "Successfully installed") {
             $installSuccess = $true
         } else {
-            # Even if editable fails, deps are installed — user can import manually
-            Write-Warn "Editable install skipped — dependencies are installed"
-            Write-Info "You can import the package by adding $installDir to your PYTHONPATH"
-            Write-Info "Or run: set PYTHONPATH=$installDir;%PYTHONPATH%"
+            # Deps are installed even if package install fails — user can use them
+            Write-Warn "Package registration skipped — all dependencies are installed"
+            Write-Info "The CLI may not be available, but Python imports will work"
+            Write-Info "Add to PYTHONPATH: `$env:PYTHONPATH = '$installDir;' + `$env:PYTHONPATH"
         }
     }
 
-    $ErrorActionPreference = "Stop"
     Pop-Location
 
     if ($installSuccess) {
