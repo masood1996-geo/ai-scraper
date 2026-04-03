@@ -38,6 +38,7 @@ Traditional scrapers break when websites change their HTML. AI Scraper doesn't c
 | ❌ Can't handle dynamic JS content | ✅ Full Chrome rendering |
 | ❌ Blocked by WAF/anti-bot | ✅ Undetected Chrome bypass |
 | ❌ Hours of maintenance | ✅ Zero maintenance |
+| ❌ Same dumb mistakes every time | ✅ **Self-learning** — gets smarter with every scrape |
 
 ---
 
@@ -80,6 +81,12 @@ ai-scraper batch url1 url2 url3 --schema products --output all_products.json
 
 # List all available schemas
 ai-scraper schemas
+
+# View learning brain stats
+ai-scraper brain
+
+# Diagnose a domain
+ai-scraper diagnose www.immowelt.de
 ```
 
 ---
@@ -121,22 +128,38 @@ results = scraper.scrape(url, my_schema)
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    AIScraper.scrape()                     │
-│                                                           │
-│  1. URL Input ──→ 2. Chrome Fetch ──→ 3. HTML Clean      │
-│                   (anti-bot bypass)   (strip junk)        │
-│                                                           │
-│  4. LLM Extract ──→ 5. JSON Parse ──→ 6. Output          │
-│     (schema-guided)   (validation)    (JSON/CSV/table)    │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    AIScraper.scrape()                         │
+│                                                               │
+│  1. Check Memory ──→ 2. Chrome Fetch ──→ 3. HTML Clean       │
+│     (learned settings)  (anti-bot bypass)  (+ learned rules) │
+│                                                               │
+│  4. LLM Extract ──→ 5. Quality Score ──→ 6. Output           │
+│     (evolved prompts)  (auto-evaluate)    (JSON/CSV/table)   │
+│                              │                                │
+│                    ┌─────────▼──────────┐                    │
+│                    │ Quality < 60%?     │                    │
+│                    │   → Self-improve   │                    │
+│                    │   → Retry with     │                    │
+│                    │     better prompt  │                    │
+│                    └────────────────────┘                    │
+│                              │                                │
+│                    ┌─────────▼──────────┐                    │
+│                    │  💾 Learn & Store  │                    │
+│                    │  Domain profiles   │                    │
+│                    │  Evolved prompts   │                    │
+│                    │  Optimal settings  │                    │
+│                    └────────────────────┘                    │
+└──────────────────────────────────────────────────────────────┘
 
 Components:
+├── core.py       — Orchestrator with self-learning pipeline
 ├── browser.py    — Headless Chrome with undetected_chromedriver
 ├── llm.py        — Multi-provider LLM client (OpenRouter/OpenAI/Kilo/Ollama)
-├── core.py       — Orchestrator: fetch → clean → extract → output
+├── memory.py     — SQLite-backed persistent learning memory
+├── learner.py    — Quality scoring, prompt evolution, domain diagnostics
 ├── schemas.py    — 10 predefined extraction templates
-└── cli.py        — Rich CLI with click framework
+└── cli.py        — Rich CLI with brain/diagnose commands
 ```
 
 ---
@@ -166,11 +189,13 @@ ai-scraper scrape https://example.com --api-key "sk-or-v1-..." --schema products
 ai-scraper/
 ├── ai_scraper/
 │   ├── __init__.py       # Package entry point
-│   ├── core.py           # AIScraper main class
+│   ├── core.py           # AIScraper main class + learning pipeline
 │   ├── browser.py        # Headless Chrome engine
 │   ├── llm.py            # LLM provider abstraction
+│   ├── memory.py         # 🧠 SQLite persistent learning memory
+│   ├── learner.py        # 🧠 Self-improvement engine
 │   ├── schemas.py        # Predefined extraction schemas
-│   └── cli.py            # Command-line interface
+│   └── cli.py            # CLI with brain/diagnose commands
 ├── examples/
 │   ├── scrape_apartments.py
 │   ├── scrape_jobs.py
@@ -245,7 +270,71 @@ results = scraper.scrape(
 
 ---
 
+## 🧠 Self-Learning System
+
+AI Scraper has a persistent learning brain that gets smarter with every scrape:
+
+### How It Works
+
+| Feature | What It Does |
+|---------|-------------|
+| **Quality Scoring** | Auto-evaluates every extraction (fill rate, validity, uniqueness, content quality) |
+| **Prompt Evolution** | When quality is low, asks the LLM to analyze WHY and generate better prompts |
+| **Domain Profiling** | Remembers optimal settings per website (wait times, cleaning rules, success rates) |
+| **Adaptive Wait Times** | Learns which sites need longer JS render time and adjusts automatically |
+| **Self-Improvement Loop** | If score < 60%, retries with evolved strategy — no human intervention |
+| **Trend Analysis** | Tracks whether your extraction quality is improving or declining over time |
+
+### Brain Commands
+
+```bash
+# See what the brain has learned
+ai-scraper brain
+
+# Diagnose a specific domain
+ai-scraper diagnose www.immowelt.de
+```
+
+### Python API
+
+```python
+scraper = AIScraper(provider="openrouter", api_key="...", learning=True)
+
+# Scrape — learning happens automatically
+results = scraper.scrape(url, Schema.APARTMENTS)
+
+# Check what was learned
+print(scraper.stats())
+# → {"total_scrapes": 47, "unique_domains": 12, "avg_quality": 0.78, ...}
+
+# Diagnose a domain
+print(scraper.diagnose("www.immowelt.de"))
+# → {"success_rate": 0.85, "trend": "improving ↑", "recommendations": [...]}
+
+# Provide feedback to help it learn
+scraper.feedback(url, Schema.APARTMENTS, "good")
+scraper.feedback(url, Schema.APARTMENTS, "bad", "Prices were wrong")
+```
+
+### Learning Memory
+
+All learning is stored in `~/.ai_scraper/memory.db` (SQLite). The brain persists across sessions — kill the process, restart your PC, it remembers everything.
+
+---
+
 ## 📋 Changelog
+
+### v1.1.0 — Self-Learning Engine
+- 🧠 Persistent learning memory (SQLite)
+- 🧠 Automatic quality scoring (fill rate, validity, uniqueness, content quality)
+- 🧠 Self-improvement loop — retries with evolved prompts when quality is low
+- 🧠 LLM-powered prompt evolution — AI writes better prompts for itself
+- 🧠 Domain profiling — remembers optimal settings per website
+- 🧠 Adaptive wait times — learns which sites need longer JS rendering
+- 🧠 Trend analysis — tracks quality improvements over time
+- 🧠 Domain diagnostics — `ai-scraper diagnose` command
+- 🧠 Brain stats — `ai-scraper brain` command
+- 🧠 User feedback API — teach the bot what's good/bad
 
 ### v1.0.0 — Initial Release
 - ✅ Core scraping engine with browser + LLM pipeline
@@ -266,6 +355,6 @@ results = scraper.scrape(
 
 **Extracted from the [OpenHouse Bot](https://github.com/masood1996-geo/openhouse-bot) project**
 
-*The AI scraping engine that powers global apartment hunting — now available as a standalone tool.*
+*The AI scraping engine that powers global apartment hunting — now available as a standalone, self-learning tool.*
 
 </div>
