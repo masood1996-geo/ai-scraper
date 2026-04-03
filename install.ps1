@@ -303,8 +303,10 @@ function Install-AIScraper {
     $ErrorActionPreference = "Continue"
 
     try {
-        & $script:PythonCmd -m pip install "." --user 2>&1 | Out-Host
-        if ($LASTEXITCODE -eq 0) {
+        $pipOutput = & $script:PythonCmd -m pip install "." --user 2>&1
+        $pipOutput | Out-Host
+        # Check both exit code and output text (pip sometimes exits non-zero due to upgrade notices)
+        if ($LASTEXITCODE -eq 0 -or ($pipOutput -join "`n") -match "Successfully installed") {
             $installSuccess = $true
         }
     } catch {}
