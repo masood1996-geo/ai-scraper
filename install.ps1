@@ -201,77 +201,132 @@ function Install-AIScraper {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  STEP 5: INSTALL & START OPEN WEBUI
+#  STEP 5: INSTALL & START OPEN WEBUI VIA DOCKER
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+$script:OpenWebUIPort = 3000
+
 function Test-OpenWebUIRunning {
-    try {
-        $r = Invoke-WebRequest -Uri "http://localhost:8080" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
-        return ($r.StatusCode -eq 200)
-    } catch {
-        return $false
+    foreach ($port in @(3000, 8080)) {
+        try {
+            $r = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($r.StatusCode -eq 200) {
+                $script:OpenWebUIPort = $port
+                return $true
+            }
+        } catch {}
     }
+    return $false
+}
+
+function Test-DockerRunning {
+    $dockerInfo = cmd /c "docker info 2>&1"
+    return ($dockerInfo -match "Server Version" -or $dockerInfo -match "Containers")
 }
 
 function Install-And-Start-OpenWebUI {
     Write-Step "Setting up Open WebUI (GUI Interface)"
 
-    # Check if already running
+    # Already running?
     if (Test-OpenWebUIRunning) {
-        Write-Success "Open WebUI already running at http://localhost:8080"
+        Write-Success "Open WebUI already running at http://localhost:$($script:OpenWebUIPort)"
         return $true
     }
 
-    # Check if installed
-    $installed = cmd /c "$($script:PythonCmd) -c `"import open_webui; print('OK')`" 2>&1"
-    if (-not ($installed -match "OK")) {
-        Write-Info "Installing Open WebUI (this takes 2-5 minutes, please wait)..."
-        Write-Host ""
-        cmd /c "$($script:PythonCmd) -m pip install open-webui --user 2>&1"
+    # Check if there's an existing stopped container
+    $existingContainer = cmd /c "docker ps -a --filter name=open-webui --format `"{{.Names}}`" 2>&1"
+    if ($existingContainer -match "open-webui") {
+        Write-Info "Found existing Open WebUI container, starting it..."
+        cmd /c "docker start open-webui 2>&1"
+
+        # Wait for it
+        $waited = 0
+        while ($waited -lt 60) {
+            Start-Sleep -Seconds 3
+            $waited += 3
+            if (Test-OpenWebUIRunning) {
+                Write-Success "Open WebUI is running!"
+                return $true
+            }
+            Write-Host "." -NoNewline -ForegroundColor DarkGray
+        }
+    }
+
+    # Check Docker availability
+    $hasDocker = Test-CommandExists "docker"
+
+    if (-not $hasDocker) {
+        Write-Fail "Docker is required for Open WebUI"
+        Write-Info "Install Docker Desktop from: https://docker.com/products/docker-desktop"
+        Write-Info "After installing Docker, re-run this installer"
+        return $false
+    }
+
+    # Start Docker Desktop if not running
+    if (-not (Test-DockerRunning)) {
+        Write-Info "Starting Docker Desktop..."
+        try {
+            Start-Process "Docker Desktop" -ErrorAction SilentlyContinue
+        } catch {
+            # Try alternative paths
+            $dockerPaths = @(
+                "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+                "$env:LOCALAPPDATA\Docker\Docker Desktop.exe"
+            )
+            foreach ($p in $dockerPaths) {
+                if (Test-Path $p) {
+                    Start-Process $p
+                    break
+                }
+            }
+        }
+
+        Write-Info "Waiting for Docker to start..."
+        $waited = 0
+        while ($waited -lt 90) {
+            Start-Sleep -Seconds 5
+            $waited += 5
+            if (Test-DockerRunning) {
+                Write-Success "Docker is ready"
+                break
+            }
+            Write-Host "." -NoNewline -ForegroundColor DarkGray
+        }
         Write-Host ""
 
-        # Verify
-        $installed2 = cmd /c "$($script:PythonCmd) -c `"import open_webui; print('OK')`" 2>&1"
-        if ($installed2 -match "OK") {
-            Write-Success "Open WebUI installed"
-        } else {
-            Write-Fail "Open WebUI installation failed"
-            Write-Info "Try manually: $($script:PythonCmd) -m pip install open-webui"
+        if (-not (Test-DockerRunning)) {
+            Write-Fail "Docker didn't start in time. Please start Docker Desktop manually and re-run."
             return $false
         }
     } else {
-        Write-Success "Open WebUI already installed"
+        Write-Success "Docker is running"
     }
 
-    # Start Open WebUI in background
-    Write-Info "Starting Open WebUI server..."
+    # Pull and run Open WebUI container
+    Write-Info "Pulling Open WebUI image (first time takes 2-5 minutes)..."
+    cmd /c "docker pull ghcr.io/open-webui/open-webui:main 2>&1"
 
-    # Find the open-webui command or use python module
-    $scriptsDir = cmd /c "$($script:PythonCmd) -c `"import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))`" 2>&1"
-    $openWebuiExe = Join-Path $scriptsDir.Trim() "open-webui.exe"
-
-    if (Test-Path $openWebuiExe) {
-        Start-Process -FilePath $openWebuiExe -ArgumentList "serve" -WindowStyle Hidden
-    } else {
-        # Fallback: use python -m
-        Start-Process -FilePath $script:PythonCmd -ArgumentList "-m", "open_webui.main", "serve" -WindowStyle Hidden
-    }
+    Write-Info "Starting Open WebUI container..."
+    cmd /c "docker run -d -p 3000:8080 -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main 2>&1"
 
     # Wait for server to be ready
-    Write-Info "Waiting for server to start..."
+    Write-Info "Waiting for Open WebUI to start..."
     $maxWait = 120
     $waited = 0
     while ($waited -lt $maxWait) {
         Start-Sleep -Seconds 3
         $waited += 3
         if (Test-OpenWebUIRunning) {
+            Write-Host ""
             Write-Success "Open WebUI is running!"
             return $true
         }
         Write-Host "." -NoNewline -ForegroundColor DarkGray
     }
 
-    Write-Warn "Server is still starting — it may need more time"
+    Write-Host ""
+    Write-Warn "Open WebUI is still starting — it may need a moment"
+    Write-Info "Check http://localhost:3000 in a minute"
     return $false
 }
 
@@ -285,12 +340,12 @@ function Configure-OpenWebUI {
     Write-Step "Configuring Open WebUI"
 
     if (-not $ServerReady) {
-        Write-Warn "Server not ready — skipping auto-configuration"
-        Write-Info "Open http://localhost:8080 once the server starts"
+        Write-Warn "Server not ready yet — skipping auto-configuration"
+        Write-Info "Open http://localhost:$($script:OpenWebUIPort) once the server starts"
         return
     }
 
-    $baseUrl = "http://localhost:8080"
+    $baseUrl = "http://localhost:$($script:OpenWebUIPort)"
     $token = $null
 
     # Auto-create admin account
@@ -348,7 +403,6 @@ function Configure-OpenWebUI {
                     -Headers $headers -ErrorAction Stop | Out-Null
                 Write-Success "AI Scraper tool installed in Open WebUI!"
             } catch {
-                # Tool might already exist — try update
                 try {
                     Invoke-RestMethod -Uri "$baseUrl/api/v1/tools/id/ai_scraper_tool/update" `
                         -Method POST -Body $toolBody -ContentType "application/json" `
@@ -362,7 +416,7 @@ function Configure-OpenWebUI {
         }
     }
 
-    # Open browser
+    # Final output
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
     Write-Host "  ✅ AI Scraper is ready!" -ForegroundColor Green
@@ -380,7 +434,7 @@ function Configure-OpenWebUI {
         Write-Host "  Just start a new chat and scrape any website!" -ForegroundColor White
     } else {
         Write-Host "  Open WebUI is running at:" -ForegroundColor White
-        Write-Host "    http://localhost:8080" -ForegroundColor Cyan
+        Write-Host "    http://localhost:$($script:OpenWebUIPort)" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "  1) Create an account" -ForegroundColor White
         Write-Host "  2) Go to Workspace > Tools > + Add Tool" -ForegroundColor White
@@ -392,7 +446,7 @@ function Configure-OpenWebUI {
     Write-Host ""
 
     # Launch browser
-    Start-Process "http://localhost:8080"
+    Start-Process "http://localhost:$($script:OpenWebUIPort)"
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -414,7 +468,7 @@ function Main {
     # Step 4: Install AI Scraper
     Install-AIScraper
 
-    # Step 5: Install & Start Open WebUI
+    # Step 5: Install & Start Open WebUI (via Docker)
     $serverReady = Install-And-Start-OpenWebUI
 
     # Step 6: Auto-configure & launch browser
@@ -422,3 +476,4 @@ function Main {
 }
 
 Main
+
