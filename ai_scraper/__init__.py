@@ -12,5 +12,6 @@ from ai_scraper.core import AIScraper
 from ai_scraper.schemas import Schema
 from ai_scraper.memory import Memory
 from ai_scraper.learner import Learner
+from ai_scraper.recovery import RecoveryEngine, FailureScenario
 
-__all__ = ["AIScraper", "Schema", "Memory", "Learner"]
+__all__ = ["AIScraper", "Schema", "Memory", "Learner", "RecoveryEngine", "FailureScenario"]

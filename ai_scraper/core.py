@@ -33,6 +33,11 @@ from ai_scraper.browser import BrowserEngine
 from ai_scraper.llm import LLMClient
 from ai_scraper.memory import Memory
 from ai_scraper.learner import Learner
+from ai_scraper.recovery import (
+    RecoveryEngine,
+    RecoveryStepType,
+    FailureScenario,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +92,13 @@ class AIScraper:
         else:
             self._memory = None
             self._learner = None
+
+        # Initialize recovery engine (adapted from claw-code-parity)
+        self._recovery = RecoveryEngine()
+        self._recovery.register_handler(
+            RecoveryStepType.RESTART_BROWSER,
+            lambda step, ctx: self._handle_restart_browser(step, ctx),
+        )
 
         logger.info(
             "AIScraper initialized (provider=%s, model=%s, learning=%s)",
@@ -278,7 +290,7 @@ class AIScraper:
         schema: Union[Dict[str, Any], str],
         instructions: str = "",
     ) -> List[Dict]:
-        """Scrape multiple URLs and combine results."""
+        """Scrape multiple URLs and combine results with automatic recovery."""
         all_results = []
         for i, url in enumerate(urls, 1):
             logger.info("Scraping URL %d/%d: %s", i, len(urls), url)
@@ -290,6 +302,25 @@ class AIScraper:
                 logger.info("  → Got %d items", len(results))
             except Exception as e:
                 logger.error("  → Failed: %s", e)
+                # Attempt automatic recovery
+                recovery = self._recovery.attempt_from_error(
+                    e, context={"url": url}
+                )
+                if recovery.success:
+                    logger.info("  → 🔄 Recovery succeeded, retrying...")
+                    try:
+                        results = self.scrape(url, schema, instructions)
+                        for item in results:
+                            item["_source_url"] = url
+                        all_results.extend(results)
+                        logger.info("  → ✅ Retry got %d items", len(results))
+                    except Exception as retry_err:
+                        logger.error("  → ❌ Retry also failed: %s", retry_err)
+                else:
+                    logger.warning(
+                        "  → ⚠️ Recovery not possible: %s",
+                        recovery.reason or recovery.result_type.value,
+                    )
         return all_results
 
     def ask_page(self, url: str, question: str) -> str:
@@ -408,6 +439,33 @@ class AIScraper:
             writer.writeheader()
             writer.writerows(results)
         logger.info("Saved %d results to %s", len(results), path)
+
+    def recovery_stats(self) -> Dict:
+        """Get recovery engine statistics."""
+        events = self._recovery.context.events
+        return {
+            "total_events": len(events),
+            "recoveries": sum(
+                1 for e in events
+                if e.event_type.value == "recovery.succeeded"
+            ),
+            "escalations": sum(
+                1 for e in events
+                if e.event_type.value == "recovery.escalated"
+            ),
+            "events": [e.to_dict() for e in events[-10:]],  # Last 10
+        }
+
+    def _handle_restart_browser(self, step, context) -> bool:
+        """Recovery handler: restart the browser engine."""
+        try:
+            self._browser.close()
+            self._browser._driver = None  # Force re-init on next use
+            logger.info("🔄 Browser restarted for recovery")
+            return True
+        except Exception as e:
+            logger.error("Failed to restart browser: %s", e)
+            return False
 
     def close(self):
         """Close browser and clean up resources."""
